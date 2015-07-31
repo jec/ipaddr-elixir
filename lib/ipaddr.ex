@@ -10,8 +10,13 @@ defmodule IPAddr do
 
   use Bitwise
 
+  @ip4mask 0xffffffff
+  @ip6mask 0xffffffffffffffffffffffffffffffff
   @ip4bits 32
   @ip6bits 128
+  @ip4terms 4
+  @ip6terms 8
+  @family_map %{ipv4: {@ip4mask, @ip4bits, @ip4terms}, ipv6: {@ip6mask, @ip6bits, @ip6terms}}
 
   @doc """
   Parses an IP address string, either IPv4 or IPv6, optionally with a
@@ -28,48 +33,48 @@ defmodule IPAddr do
     {:ok, ip} = ip_str |> String.to_char_list |> :inet.parse_address
     max_bits = identity(ip)
     family = if max_bits == @ip4bits, do: :ipv4, else: :ipv6
-    bitmask = if mask_str == nil, do: max_bits, else: String.to_integer(mask_str)
-    # mask any bits beyond the bitmask
-    mask = ((:math.pow(2, max_bits) |> trunc) - 1) <<< (max_bits - bitmask)
-    ip_int = to_integer(ip) &&& mask
-    %IPAddr{family: family, ip: from_integer(ip_int, family), mask: bitmask}
+    cidr_length = if mask_str == nil, do: max_bits, else: String.to_integer(mask_str)
+    from_integer(to_integer(ip), family, cidr_length)
   end
 
   @doc """
-  Receives an integer and returns an IP address tuple (with either 4 or 8
-  elements)
+  Receives an integer and family and (optionally) cidr_length and returns an
+  IPAddr struct
   """
-  def from_integer(int, family) when family == :ipv4 or family == :ipv6 do
-    bytes = :binary.bin_to_list(:binary.encode_unsigned(int))
-    if length(bytes) == 16 do
-      bytes = squeeze_v6(bytes, [])
+  def from_integer(int, family, cidr_length \\ nil) when family == :ipv4 or family == :ipv6 do
+    {base_mask, max_bits, max_terms} = @family_map[family]
+    cidr_length = cidr_length || max_bits
+    # mask any bits beyond the bitmask
+    mask = (base_mask <<< (max_bits - cidr_length)) &&& base_mask
+    ip_int = int &&& mask
+    # get list of terms
+    terms = :binary.encode_unsigned(ip_int) |> :binary.bin_to_list
+    if length(terms) == 16 do
+      terms = squeeze_v6(terms, [])
     end
     # pad if necessary
-    max_bytes = if family == :ipv4, do: 4, else: 8
-    pad_elems = max_bytes - length(bytes)
+    pad_elems = max_terms - length(terms)
     if pad_elems > 0 do
-      bytes = lpad_list(bytes, pad_elems)
+      terms = lpad_list(terms, pad_elems)
     end
-    List.to_tuple(bytes)
+    %IPAddr{family: family, ip: List.to_tuple(terms), mask: cidr_length}
   end
 
   @doc """
-  Receives either an IP address tuple or an IP address map (as created by new())
-  and returns true or false to indicate whether it is IPv4
+  Receives an IPAddr struct and returns true if it is IPv4; else returns false
   """
   def ipv4?(%IPAddr{family: f, ip: {a,b,c,d}, mask: m}) when f == :ipv4 and a in 0..255 and b in 0..255 and c in 0..255 and d in 0..255 and m in 0..@ip4bits, do: true
   def ipv4?(_), do: false
 
   @doc """
-  Receives either an IP address tuple or an IP address map (as created by new())
-  and returns true or false to indicate whether it is IPv6
+  Receives an IPAddr struct and returns true if it is IPv6; else returns false
   """
   def ipv6?(%{family: fam, ip: {a,b,c,d,e,f,g,h}, mask: m}) when fam == :ipv6 and a in 0..65535 and b in 0..65535 and c in 0..65535 and d in 0..65535 and e in 0..65535 and f in 0..65535 and g in 0..65535 and h in 0..65535 and m in 0..@ip6bits, do: true
   def ipv6?(_), do: false
 
   @doc """
-  Receives an IP address tuple or map and returns 32 for an IPv4 address or 128 for
-  an IPv6 address
+  Receives either an IPAddr struct or an IP address tuple and returns 32 for an
+  IPv4 address or 128 for an IPv6 address
   """
   def identity({_,_,_,_}), do: @ip4bits
   def identity({_,_,_,_,_,_,_,_}), do: @ip6bits
@@ -77,15 +82,14 @@ defmodule IPAddr do
   def identity(%IPAddr{family: f, ip: {_,_,_,_,_,_,_,_}, mask: _}) when f == :ipv6, do: @ip6bits
 
   @doc """
-  Receives an IP address map and returns true if the mask equals the identity
+  Receives an IPAddr struct and returns true if the mask equals the identity
   mask for that address class (32 for IPv4 or 128 for IPv6); else returns false
   """
   def identity?(%IPAddr{family: f, ip: {_,_,_,_}, mask: m}) when f == :ipv4, do: m == @ip4bits
   def identity?(%IPAddr{family: f, ip: {_,_,_,_,_,_,_,_}, mask: m}) when f == :ipv6, do: m == @ip6bits
 
   @doc """
-  Receives an IP address map (as returned by new()) and returns an integer for the
-  maximum IP within that range
+  Receives an IPAddr struct and returns an integer for the maximum IP within that range
   """
   def max_int(%IPAddr{family: fam, ip: t={a,b,c,d}, mask: m}) when fam == :ipv4 and a in 0..255 and b in 0..255 and c in 0..255 and d in 0..255 and m in 0..@ip4bits do
     to_integer(t) |> max_int(m, @ip4bits)
@@ -99,8 +103,8 @@ defmodule IPAddr do
   end
 
   @doc """
-  Receives an IP address map (as returned by new()) and returns a tuple for the
-  maximum IP within that range
+  Receives an IPAddr struct and returns an IPAddr struct representing the maximum
+  IP within that range
   """
   def max(%IPAddr{family: fam, ip: t={a,b,c,d}, mask: m}) when fam == :ipv4 and a in 0..255 and b in 0..255 and c in 0..255 and d in 0..255 and m in 0..@ip4bits do
     to_integer(t) |> max(m, @ip4bits, fam)
@@ -109,13 +113,12 @@ defmodule IPAddr do
     to_integer(t) |> max(m, @ip6bits, fam)
   end
   defp max(ip_int, mask, max_bits, family) do
-    ip_tuple = max_int(ip_int, mask, max_bits) |> from_integer(family)
-    %IPAddr{family: family, ip: ip_tuple, mask: max_bits}
+    max_int(ip_int, mask, max_bits) |> from_integer(family, max_bits)
   end
 
   @doc """
-  Receives two IP address maps (as returned by new()) and returns true if the
-  2nd is a subset of the 1st; else returns false
+  Receives two IPAddr structs and returns true if the 2nd is a subset of the 1st;
+  else returns false
   """
   def include?(%IPAddr{family: fam, ip: t1, mask: m1}, %{ip: t2, mask: m2}) when fam == :ipv4 do
     include?(t1, m1, t2, m2, @ip4bits)
@@ -132,9 +135,8 @@ defmodule IPAddr do
   end
 
   @doc """
-  Receives an IP address tuple or map and returns a string
-
-  If passed a tuple, the CIDR mask will not be included in the string.
+  Receives an IPAddr struct and returns a string representation of the IP address
+  including CIDR mask
   """
   def to_string(%IPAddr{family: _, ip: ip_tuple, mask: mask}), do: "#{ip_tuple |> :inet.ntoa |> :binary.list_to_bin |> String.downcase}/#{mask}"
 
@@ -149,8 +151,7 @@ defmodule IPAddr do
   end
 
   @doc """
-  Receives an IP address tuple (either 4 or 8 elements) and returns a binary
-  (either 4 or 16 elements)
+  Receives an IPAddr struct and returns a binary (either 4 or 16 bytes long)
   """
   def to_binary(%IPAddr{family: fam, ip: {a,b,c,d}, mask: _}) when fam == :ipv4, do: to_binary([a,b,c,d], <<>>, 8)
   def to_binary(%IPAddr{family: fam, ip: {a,b,c,d,e,f,g,h}, mask: _}) when fam == :ipv6, do: to_binary([a,b,c,d,e,f,g,h], <<>>, 16)

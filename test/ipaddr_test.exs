@@ -22,10 +22,12 @@ defmodule IPAddrTest do
   end
 
   test "can convert an integer to an IP address tuple" do
-    assert IPAddr.from_integer(3232238081, :ipv4) == {192, 168, 10, 1}
-    assert IPAddr.from_integer(1, :ipv4) == {0, 0, 0, 1}
-    assert IPAddr.from_integer(42543972701425385287337697859424437607, :ipv6) == IPAddr.new("2001:abcd:1234:5678:90ab:cdef:123:4567").ip
-    assert IPAddr.from_integer(1, :ipv6) == {0, 0, 0, 0, 0, 0, 0, 1}
+    assert IPAddr.from_integer(3232238081, :ipv4) == %IPAddr{family: :ipv4, ip: {192, 168, 10, 1}, mask: 32}
+    assert IPAddr.from_integer(3232238081, :ipv4, 24) == %IPAddr{family: :ipv4, ip: {192, 168, 10, 0}, mask: 24}
+    assert IPAddr.from_integer(1, :ipv4) == %IPAddr{family: :ipv4, ip: {0, 0, 0, 1}, mask: 32}
+    assert IPAddr.from_integer(42543972701425385287337697859424437607, :ipv6) == IPAddr.new("2001:abcd:1234:5678:90ab:cdef:123:4567")
+    assert IPAddr.from_integer(42543972701425385287337697859424437607, :ipv6, 64) == IPAddr.new("2001:abcd:1234:5678::/64")
+    assert IPAddr.from_integer(1, :ipv6) == %IPAddr{family: :ipv6, ip: {0, 0, 0, 0, 0, 0, 0, 1}, mask: 128}
   end
 
   test "can recognize an IPv4 address tuple or map" do
@@ -79,8 +81,10 @@ defmodule IPAddrTest do
   test "can convert an IP address map to a string" do
     assert IPAddr.to_string(IPAddr.new("192.168.0.0/16")) == "192.168.0.0/16"
     assert IPAddr.to_string(IPAddr.new("200.100.50.25")) == "200.100.50.25/32"
+    assert to_string(IPAddr.new("200.100.50.25")) == "200.100.50.25/32"
     assert IPAddr.to_string(IPAddr.new("2001:abcd:1234:5678::/64")) == "2001:abcd:1234:5678::/64"
     assert IPAddr.to_string(IPAddr.new("2001:abcd:1234:5678:90ab:cdef:123:4567")) == "2001:abcd:1234:5678:90ab:cdef:123:4567/128"
+    assert to_string(IPAddr.new("2001:abcd:1234:5678:90ab:cdef:123:4567")) == "2001:abcd:1234:5678:90ab:cdef:123:4567/128"
   end
 
   test "can convert an IP address tuple to an integer" do
