@@ -24,12 +24,12 @@ defmodule IPAddr do
       [a]    -> [a, :nil]
       [a, b] -> [a, b]
     end
-    {:ok, ip} = :inet.parse_address(String.to_char_list(ip_str))
+    {:ok, ip} = ip_str |> String.to_char_list |> :inet.parse_address
     max_bits = identity(ip)
     family = if max_bits == @ip4bits, do: :ipv4, else: :ipv6
     bitmask = if mask_str == nil, do: max_bits, else: String.to_integer(mask_str)
     # mask any bits beyond the bitmask
-    mask = (trunc(:math.pow(2, max_bits)) - 1) <<< (max_bits - bitmask)
+    mask = ((:math.pow(2, max_bits) |> trunc) - 1) <<< (max_bits - bitmask)
     ip_int = to_integer(ip) &&& mask
     %{ip: from_integer(ip_int, family), mask: bitmask}
   end
@@ -89,13 +89,13 @@ defmodule IPAddr do
   maximum IP within that range
   """
   def max_int(%{ip: {a,b,c,d}, mask: m}) when a in 0..255 and b in 0..255 and c in 0..255 and d in 0..255 and m in 0..@ip4bits do
-    max_int(to_integer({a,b,c,d}), m, @ip4bits)
+    to_integer({a,b,c,d}) |> max_int(m, @ip4bits)
   end
   def max_int(%{ip: {a,b,c,d,e,f,g,h}, mask: m}) when a in 0..65535 and b in 0..65535 and c in 0..65535 and d in 0..65535 and e in 0..65535 and f in 0..65535 and g in 0..65535 and h in 0..65535 and m in 0..@ip6bits do
-    max_int(to_integer({a,b,c,d,e,f,g,h}), m, @ip6bits)
+    to_integer({a,b,c,d,e,f,g,h}) |> max_int(m, @ip6bits)
   end
   defp max_int(ip_int, mask, max_bits) do
-    max_mask = trunc(:math.pow(2, (max_bits - mask))) - 1
+    max_mask = (:math.pow(2, max_bits - mask) |> trunc) - 1
     ip_int ||| max_mask
   end
 
@@ -104,13 +104,13 @@ defmodule IPAddr do
   maximum IP within that range
   """
   def max(%{ip: {a,b,c,d}, mask: m}) when a in 0..255 and b in 0..255 and c in 0..255 and d in 0..255 and m in 0..@ip4bits do
-    max(to_integer({a,b,c,d}), m, @ip4bits, :ipv4)
+    to_integer({a,b,c,d}) |> max(m, @ip4bits, :ipv4)
   end
   def max(%{ip: {a,b,c,d,e,f,g,h}, mask: m}) when a in 0..65535 and b in 0..65535 and c in 0..65535 and d in 0..65535 and e in 0..65535 and f in 0..65535 and g in 0..65535 and h in 0..65535 and m in 0..@ip6bits do
-    max(to_integer({a,b,c,d,e,f,g,h}), m, @ip6bits, :ipv6)
+    to_integer({a,b,c,d,e,f,g,h}) |> max(m, @ip6bits, :ipv6)
   end
   defp max(ip_int, mask, max_bits, family) do
-    from_integer(max_int(ip_int, mask, max_bits), family)
+    max_int(ip_int, mask, max_bits) |> from_integer(family)
   end
 
   @doc """
@@ -131,13 +131,14 @@ defmodule IPAddr do
     min_left <= min_right and min_right <= max_left and min_left <= max_right and max_right <= max_left
   end
 
+  # TODO: Investigate how to make this work with Kernel.to_string/1.
   @doc """
   Receives an IP address tuple or map and returns a string
   
   If passed a tuple, the CIDR mask will not be included in the string.
   """
-  def to_string(%{ip: ip_tuple, mask: mask}), do: "#{String.downcase(:binary.list_to_bin(:inet.ntoa(ip_tuple)))}/#{mask}"
-  def to_string(ip_tuple), do: String.downcase(:binary.list_to_bin(:inet.ntoa(ip_tuple)))
+  def to_str(ip_tuple) when is_tuple(ip_tuple), do: ip_tuple |> :inet.ntoa |> :binary.list_to_bin |> String.downcase
+  def to_str(%{ip: ip_tuple, mask: mask}), do: "#{to_str(ip_tuple)}/#{mask}"
 
   @doc """
   Receives an IP address tuple (either 4 or 8 elements) and returns an integer

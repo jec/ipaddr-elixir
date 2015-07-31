@@ -86,12 +86,12 @@ defmodule IPAddrTest do
   end
 
   test "can convert an IP address tuple or map to a string" do
-    assert IPAddr.to_string({192, 168, 10, 1}) == "192.168.10.1"
-    assert IPAddr.to_string(IPAddr.parse("192.168.0.0/16")) == "192.168.0.0/16"
-    assert IPAddr.to_string(IPAddr.parse("200.100.50.25")) == "200.100.50.25/32"
-    assert IPAddr.to_string({8193, 43981, 4660, 22136, 37035, 52719, 291, 17767}) == "2001:abcd:1234:5678:90ab:cdef:123:4567"
-    assert IPAddr.to_string(IPAddr.parse("2001:abcd:1234:5678::/64")) == "2001:abcd:1234:5678::/64"
-    assert IPAddr.to_string(IPAddr.parse("2001:abcd:1234:5678:90ab:cdef:123:4567")) == "2001:abcd:1234:5678:90ab:cdef:123:4567/128"
+    assert IPAddr.to_str({192, 168, 10, 1}) == "192.168.10.1"
+    assert IPAddr.to_str(IPAddr.parse("192.168.0.0/16")) == "192.168.0.0/16"
+    assert IPAddr.to_str(IPAddr.parse("200.100.50.25")) == "200.100.50.25/32"
+    assert IPAddr.to_str({8193, 43981, 4660, 22136, 37035, 52719, 291, 17767}) == "2001:abcd:1234:5678:90ab:cdef:123:4567"
+    assert IPAddr.to_str(IPAddr.parse("2001:abcd:1234:5678::/64")) == "2001:abcd:1234:5678::/64"
+    assert IPAddr.to_str(IPAddr.parse("2001:abcd:1234:5678:90ab:cdef:123:4567")) == "2001:abcd:1234:5678:90ab:cdef:123:4567/128"
   end
 
   test "can convert an IP address tuple to an integer" do
