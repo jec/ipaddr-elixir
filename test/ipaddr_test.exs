@@ -1,5 +1,4 @@
 defmodule IPAddrTest do
-
   use ExUnit.Case
 
   test "the truth" do
@@ -96,5 +95,4 @@ defmodule IPAddrTest do
     assert IPAddr.to_binary(IPAddr.new("192.168.10.1")) == <<192, 168, 10, 1>>
     assert IPAddr.to_binary(IPAddr.new("2001:abcd:1234:5678:90ab:cdef:123:4567")) == <<32, 1, 171, 205, 18, 52, 86, 120, 144, 171, 205, 239, 1, 35, 69, 103>>
   end
-
 end

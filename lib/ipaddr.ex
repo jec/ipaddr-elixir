@@ -1,5 +1,4 @@
 defmodule IPAddr do
-
   @moduledoc """
   IP address and range manipulation, including CIDR syntax support
 
@@ -11,11 +10,13 @@ defmodule IPAddr do
   use Bitwise
 
   @ip4mask 0xffffffff
-  @ip6mask 0xffffffffffffffffffffffffffffffff
   @ip4bits 32
-  @ip6bits 128
   @ip4terms 4
+
+  @ip6mask 0xffffffffffffffffffffffffffffffff
+  @ip6bits 128
   @ip6terms 8
+
   @family_map %{ipv4: {@ip4mask, @ip4bits, @ip4terms}, ipv6: {@ip6mask, @ip6bits, @ip6terms}}
 
   @doc """
@@ -30,7 +31,7 @@ defmodule IPAddr do
       [a]    -> [a, nil]
       [a, b] -> [a, b]
     end
-    {:ok, ip} = ip_str |> String.to_char_list |> :inet.parse_address
+    {:ok, ip} = ip_str |> String.to_charlist |> :inet.parse_address
     max_bits = identity(ip)
     family = if max_bits == @ip4bits, do: :ipv4, else: :ipv6
     cidr_length = if mask_str == nil, do: max_bits, else: String.to_integer(mask_str)
@@ -49,14 +50,13 @@ defmodule IPAddr do
     ip_int = int &&& mask
     # get list of terms
     terms = :binary.encode_unsigned(ip_int) |> :binary.bin_to_list
-    if length(terms) == 16 do
-      terms = squeeze_v6(terms, [])
+    terms = if length(terms) == 16 do
+      Enum.chunk_every(terms, 2) |> Enum.map(fn([a, b]) -> (a <<< 8) + b end)
+    else
+      terms
     end
     # pad if necessary
-    pad_elems = max_terms - length(terms)
-    if pad_elems > 0 do
-      terms = lpad_list(terms, pad_elems)
-    end
+    terms = lpad_list(terms, max_terms - length(terms))
     %IPAddr{family: family, ip: List.to_tuple(terms), mask: cidr_length}
   end
 
@@ -159,34 +159,14 @@ defmodule IPAddr do
   defp to_binary([head | tail], bin, bits), do: to_binary(tail, bin <> <<head::size(bits)>>, bits)
 
   #
-  # Receives a list of bytes and combines every 2 bytes into a single 2-byte
-  # value
-  #
-  defp squeeze_v6([], ary) do
-    :lists.reverse(ary)
-  end
-  defp squeeze_v6([head|tail], ary) do
-    first_elem = if length(ary) == 0, do: nil, else: List.first(ary)
-    elem = if is_list(first_elem) do
-      [_ | ary] = ary
-      first_byte = List.first(first_elem)
-      (first_byte <<< 8) + head
-    else
-      [head]
-    end
-    squeeze_v6(tail, [elem | ary])
-  end
-
-  #
   # Adds _count_ zeroes at the head of _list_
   #
-  defp lpad_list(list, count) when count == 0 do
+  defp lpad_list(list, 0) do
     list
   end
-  defp lpad_list(list, count) do
+  defp lpad_list(list, count) when count > 0 do
     lpad_list([0 | list], count - 1)
   end
-
 end
 
 defimpl String.Chars, for: IPAddr do
