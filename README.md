@@ -1,3 +1,5 @@
+[![jec](https://circleci.com/gh/jec/ipaddr-elixir.svg?style=shield)](https://circleci.com/gh/jec/ipaddr-elixir)
+
 # IPAddr for Elixir
 
 The IPAddr module provides IP address manipulation, including CIDR-style range
